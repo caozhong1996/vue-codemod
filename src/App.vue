@@ -1,27 +1,23 @@
 <template>
-  <img alt="Vue logo" src="./assets/logo.png">
-  <HelloWorld msg="Welcome to Your Vue.js + TypeScript App"/>
+  <div id="app">
+    <CodeSandbox />
+  </div>
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue'
-import HelloWorld from './components/HelloWorld.vue'
+import CodeSandbox from './components/CodeSandbox.vue'
 
-export default defineComponent({
+export default {
   name: 'App',
   components: {
-    HelloWorld
+    CodeSandbox
   }
-})
+}
 </script>
 
 <style lang="scss">
-#app {
+body {
+  margin: 0;
   font-family: Avenir, Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
-  margin-top: 60px;
 }
 </style>
