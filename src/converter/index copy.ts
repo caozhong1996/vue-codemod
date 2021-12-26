@@ -1,9 +1,6 @@
-import { parse, print, types, visit } from 'recast'
 import { camel, kebab } from 'case'
 import { groupStatements } from './groups'
 import j, { API } from 'jscodeshift'
-
-const { namedTypes, builders } = types
 
 const LIFECYCLE_HOOKS = [
   'beforeCreate',
@@ -27,11 +24,10 @@ const ROUTER_HOOKS = [
 export function convertScript (script: string, {
   variableMethods = false
 } = {}): string {
-  const ast = parse(script)
-  /** @type {import('recast').types.namedTypes.ExportDefaultDeclaration} */
-  const componentDefinition = ast.program.body.find(node =>
-    namedTypes.ExportDefaultDeclaration.check(node)
-  )
+  const astCollection = j(script)
+  /** @type {import('recast').types.j.ExportDefaultDeclaration} */
+  const componentDefinition = astCollection.find(j.ExportDefaultDeclaration)
+
   if (!componentDefinition) {
     throw new Error('Default export not found')
   }
@@ -46,18 +42,18 @@ export function convertScript (script: string, {
     vue: [],
     vueRouter: []
   }
-  const setupReturn = builders.returnStatement(
-    builders.objectExpression([])
+  const setupReturn = j.returnStatement(
+    j.objectExpression([])
   )
-  const setupFn = builders.functionExpression(
+  const setupFn = j.functionExpression(
     null,
     [],
-    builders.blockStatement([])
+    j.blockStatement([])
   )
 
-  /** @type {import('recast').types.namedTypes.Property[]} */
+  /** @type {import('recast').types.j.Property[]} */
   const options = componentDefinition.declaration.properties.filter(node =>
-    namedTypes.Property.check(node)
+    j.Property.check(node)
   )
 
   /** @type {string[]} */
@@ -70,22 +66,22 @@ export function convertScript (script: string, {
   const dataOption = options.find(node => node.key.name === 'data')
   if (dataOption) {
     let objectProperties
-    if (namedTypes.FunctionExpression.check(dataOption.value)) {
+    if (j.FunctionExpression.check(dataOption.value)) {
       const returnStatement = dataOption.value.body.body.find(node =>
-        namedTypes.ReturnStatement.check(node)
+        j.ReturnStatement.check(node)
       )
       if (!returnStatement) {
         throw new Error('No return statement found in data option')
       }
       objectProperties = returnStatement.argument.properties
-    } else if (namedTypes.ObjectExpression.check(dataOption.value)) {
+    } else if (j.ObjectExpression.check(dataOption.value)) {
       objectProperties = dataOption.value.properties
     }
     /** @type {{ name: string, value: any, state: boolean }[]} */
     const dataProperties = objectProperties.map(node => ({
       name: node.key.name,
       value: node.value,
-      state: namedTypes.ObjectExpression.check(node.value)
+      state: j.ObjectExpression.check(node.value)
     }))
     if (dataProperties.length) {
       if (dataProperties.some(p => !p.state)) {
@@ -96,18 +92,18 @@ export function convertScript (script: string, {
       }
       for (const property of dataProperties) {
         setupFn.body.body.push(
-          builders.variableDeclaration('const', [
-            builders.variableDeclarator(
-              builders.identifier(property.name),
-              builders.callExpression(
-                builders.identifier(property.state ? 'reactive' : 'ref'),
+          j.variableDeclaration('const', [
+            j.variableDeclarator(
+              j.identifier(property.name),
+              j.callExpression(
+                j.identifier(property.state ? 'reactive' : 'ref'),
                 [property.value]
               )
             )
           ])
         )
         setupReturn.argument.properties.push(
-          builders.identifier(property.name)
+          j.identifier(property.name)
         )
         setupVariables.push(property.name)
         if (!property.state) {
@@ -124,9 +120,9 @@ export function convertScript (script: string, {
     newImports.vue.push('computed')
     for (const property of computedOption.value.properties) {
       let args
-      if (namedTypes.FunctionExpression.check(property.value)) {
-        args = [builders.arrowFunctionExpression([], property.value.body)]
-      } else if (namedTypes.ObjectExpression.check(property.value)) {
+      if (j.FunctionExpression.check(property.value)) {
+        args = [j.arrowFunctionExpression([], property.value.body)]
+      } else if (j.ObjectExpression.check(property.value)) {
         const getFn = property.value.properties.find(p => p.key.name === 'get')
         const setFn = property.value.properties.find(p => p.key.name === 'set')
         args = [
@@ -135,18 +131,18 @@ export function convertScript (script: string, {
         ]
       }
       setupFn.body.body.push(
-        builders.variableDeclaration('const', [
-          builders.variableDeclarator(
-            builders.identifier(property.key.name),
-            builders.callExpression(
-              builders.identifier('computed'),
+        j.variableDeclaration('const', [
+          j.variableDeclarator(
+            j.identifier(property.key.name),
+            j.callExpression(
+              j.identifier('computed'),
               args
             )
           )
         ])
       )
       setupReturn.argument.properties.push(
-        builders.identifier(property.key.name)
+        j.identifier(property.key.name)
       )
       setupVariables.push(property.key.name)
       valueWrappers.push(property.key.name)
@@ -160,7 +156,7 @@ export function convertScript (script: string, {
     newImports.vue.push('watch')
     for (const property of watchOption.value.properties) {
       let firstArg
-      if (namedTypes.Literal.check(property.key)) {
+      if (j.Literal.check(property.key)) {
         const parts = property.key.value.split('.')
         if (valueWrappers.includes(parts[0])) {
           parts.splice(1, 0, 'value')
@@ -168,25 +164,25 @@ export function convertScript (script: string, {
         let expression
         for (const part of parts) {
           if (!expression) {
-            expression = builders.identifier(part)
+            expression = j.identifier(part)
           } else {
-            expression = builders.memberExpression(expression, builders.identifier(part))
+            expression = j.memberExpression(expression, j.identifier(part))
           }
         }
-        firstArg = builders.arrowFunctionExpression([], expression, true)
+        firstArg = j.arrowFunctionExpression([], expression, true)
       } else {
-        firstArg = builders.identifier(property.key.name)
+        firstArg = j.identifier(property.key.name)
       }
 
       const args = [firstArg]
       // Handler only as direct function
-      if (namedTypes.FunctionExpression.check(property.value)) {
+      if (j.FunctionExpression.check(property.value)) {
         args.push(buildArrowFunctionExpression(property.value))
         // Immediate is false by default
-        args.push(builders.objectExpression([
-          builders.objectProperty(builders.identifier('lazy'), builders.literal(true))
+        args.push(j.objectExpression([
+          j.objectProperty(j.identifier('lazy'), j.literal(true))
         ]))
-      } else if (namedTypes.ObjectExpression.check(property.value)) {
+      } else if (j.ObjectExpression.check(property.value)) {
         // Object notation
         const handler = property.value.properties.find(p => p.key.name === 'handler')
         args.push(buildArrowFunctionExpression(handler.value))
@@ -196,28 +192,28 @@ export function convertScript (script: string, {
             // Convert to `lazy` option (and negate value)
             let value
             let addLazyOption = false
-            if (namedTypes.Literal.check(objectProperty.value)) {
+            if (j.Literal.check(objectProperty.value)) {
               const lazy = !objectProperty.value.value
-              value = builders.literal(lazy)
+              value = j.literal(lazy)
               addLazyOption = lazy
             } else {
-              value = builders.unaryExpression('!', objectProperty.value)
+              value = j.unaryExpression('!', objectProperty.value)
               addLazyOption = true
             }
             if (addLazyOption) {
-              options.push(builders.objectProperty(builders.identifier('lazy'), value))
+              options.push(j.objectProperty(j.identifier('lazy'), value))
             }
           } else if (objectProperty.key.name !== 'handler') {
             options.push(objectProperty)
           }
         }
         if (options.length) {
-          args.push(builders.objectExpression(options))
+          args.push(j.objectExpression(options))
         }
       }
-      setupFn.body.body.push(builders.expressionStatement(
-        builders.callExpression(
-          builders.identifier('watch'),
+      setupFn.body.body.push(j.expressionStatement(
+        j.callExpression(
+          j.identifier('watch'),
           args
         )
       ))
@@ -230,9 +226,9 @@ export function convertScript (script: string, {
   if (methodsOption) {
     for (const property of methodsOption.value.properties) {
       if (variableMethods) {
-        setupFn.body.body.push(builders.variableDeclaration('const', [
-          builders.variableDeclarator(
-            builders.identifier(property.key.name),
+        setupFn.body.body.push(j.variableDeclaration('const', [
+          j.variableDeclarator(
+            j.identifier(property.key.name),
             buildArrowFunctionExpression(property.value)
           )
         ]))
@@ -243,7 +239,7 @@ export function convertScript (script: string, {
         ))
       }
       setupReturn.argument.properties.push(
-        builders.identifier(property.key.name)
+        j.identifier(property.key.name)
       )
       setupVariables.push(property.key.name)
     }
@@ -256,10 +252,10 @@ export function convertScript (script: string, {
       if (hookList.includes(option.key.name)) {
         const hookName = camel(`on_${option.key.name}`)
         importList.push(hookName)
-        setupFn.body.body.push(builders.expressionStatement(
-          builders.callExpression(
-            builders.identifier(hookName),
-            [builders.arrowFunctionExpression(option.value.params, option.value.body)]
+        setupFn.body.body.push(j.expressionStatement(
+          j.callExpression(
+            j.identifier(hookName),
+            [j.arrowFunctionExpression(option.value.params, option.value.body)]
           )
         ))
         removeOption(option)
@@ -279,27 +275,27 @@ export function convertScript (script: string, {
     setupFn.body.body.push(setupReturn)
 
     componentDefinition.declaration.properties.push(
-      builders.methodDefinition(
+      j.methodDefinition(
         'method',
-        builders.identifier('setup'),
+        j.identifier('setup'),
         setupFn
       )
     )
   }
 
   // Imports
-  const importStatements = []
+  const importStatements: j.ImportDeclaration[] = []
   Object.keys(newImports).forEach(key => {
     const pkg = kebab(key)
     if (newImports[key].length) {
-      const specifiers = newImports[key].map(i => builders.importSpecifier(builders.identifier(i)))
-      const importDeclaration = builders.importDeclaration(specifiers, builders.stringLiteral(pkg))
+      const specifiers = newImports[key].map(i => j.importSpecifier(j.identifier(i)))
+      const importDeclaration = j.importDeclaration(specifiers, j.stringLiteral(pkg))
       importStatements.push(importDeclaration)
     }
   })
 
   if (importStatements.length) {
-    ast.program.body.splice(0, 0, ...importStatements, '\n')
+    astCollection.program.body.splice(0, 0, ...importStatements, '\n')
   }
 
   return print(ast).code
@@ -313,13 +309,13 @@ export function convertScript (script: string, {
 function transformThis (node, setupVariables, valueWrappers) {
   visit(node, {
     visitMemberExpression (path) {
-      if (namedTypes.ThisExpression.check(path.value.object) &&
+      if (j.ThisExpression.check(path.value.object) &&
         setupVariables.includes(path.value.property.name)) {
         // Remove this
-        let parentObject = builders.identifier(path.value.property.name)
+        let parentObject = j.identifier(path.value.property.name)
         // Value wrapper
         if (valueWrappers.includes(path.value.property.name)) {
-          parentObject = builders.memberExpression(parentObject, builders.identifier('value'))
+          parentObject = j.memberExpression(parentObject, j.identifier('value'))
         }
         path.replace(parentObject)
       }
@@ -329,7 +325,7 @@ function transformThis (node, setupVariables, valueWrappers) {
 }
 
 function buildArrowFunctionExpression (node) {
-  const result = builders.arrowFunctionExpression(
+  const result = j.arrowFunctionExpression(
     node.params,
     node.body
   )
@@ -338,8 +334,8 @@ function buildArrowFunctionExpression (node) {
 }
 
 function buildFunctionDeclaration (name, node) {
-  const result = builders.functionDeclaration(
-    builders.identifier(name),
+  const result = j.functionDeclaration(
+    j.identifier(name),
     node.params,
     node.body
   )
