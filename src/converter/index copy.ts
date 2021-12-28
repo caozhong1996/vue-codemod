@@ -1,6 +1,7 @@
-import { camel, kebab } from 'case'
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
+import { kebab } from 'case'
 import { groupStatements } from './groups'
-import j, { API } from 'jscodeshift'
+import j, { Identifier } from 'jscodeshift'
 
 const LIFECYCLE_HOOKS = [
   'beforeCreate',
@@ -25,64 +26,67 @@ export function convertScript (script: string, {
   variableMethods = false
 } = {}): string {
   const astCollection = j(script)
-  /** @type {import('recast').types.j.ExportDefaultDeclaration} */
-  const componentDefinition = astCollection.find(j.ExportDefaultDeclaration)
+
+  // ObjectExpression
+
+  const componentDefinition: j.ObjectExpression = astCollection.find(j.ExportDefaultDeclaration).get(0).node.declaration
 
   if (!componentDefinition) {
     throw new Error('Default export not found')
   }
-  console.log(componentDefinition)
 
-  const removeOption = (option) => {
-    const index = componentDefinition.declaration.properties.indexOf(option)
-    componentDefinition.declaration.properties.splice(index, 1)
-  }
-
-  const newImports: any = {
+  const newImports: {
+    vue: string[],
+    vueRouter: string[]
+  } = {
     vue: [],
     vueRouter: []
   }
   const setupReturn = j.returnStatement(
     j.objectExpression([])
   )
+
   const setupFn = j.functionExpression(
     null,
     [],
     j.blockStatement([])
   )
 
-  /** @type {import('recast').types.j.Property[]} */
-  const options = componentDefinition.declaration.properties.filter(node =>
-    j.Property.check(node)
-  )
+  const options = componentDefinition.properties as j.Property[]
 
-  /** @type {string[]} */
-  const valueWrappers = []
+  const valueWrappers: string[] = []
 
-  /** @type {string[]} */
-  const setupVariables = []
+  const setupVariables: string[] = []
 
   // Data
-  const dataOption = options.find(node => node.key.name === 'data')
+  const dataOption = options.find(node => (node.key as j.Identifier).name === 'data')
+  let objectProperties: j.ObjectExpression['properties'] = []
+
   if (dataOption) {
-    let objectProperties
     if (j.FunctionExpression.check(dataOption.value)) {
       const returnStatement = dataOption.value.body.body.find(node =>
         j.ReturnStatement.check(node)
       )
-      if (!returnStatement) {
+
+      if (!j.ReturnStatement.check(returnStatement)) {
         throw new Error('No return statement found in data option')
       }
-      objectProperties = returnStatement.argument.properties
+
+      objectProperties = (returnStatement.argument as j.ObjectExpression).properties
     } else if (j.ObjectExpression.check(dataOption.value)) {
       objectProperties = dataOption.value.properties
     }
-    /** @type {{ name: string, value: any, state: boolean }[]} */
-    const dataProperties = objectProperties.map(node => ({
-      name: node.key.name,
-      value: node.value,
-      state: j.ObjectExpression.check(node.value)
-    }))
+
+    const dataProperties: { name: string; value: j.Property['value']; state: boolean } [] = []
+    objectProperties.forEach(p => {
+      const node = p as j.Property
+      dataProperties.push({
+        name: (node.key as j.Identifier).name,
+        value: node.value,
+        state: j.ObjectExpression.check(node.value)
+      })
+    })
+
     if (dataProperties.length) {
       if (dataProperties.some(p => !p.state)) {
         newImports.vue.push('ref')
@@ -97,34 +101,40 @@ export function convertScript (script: string, {
               j.identifier(property.name),
               j.callExpression(
                 j.identifier(property.state ? 'reactive' : 'ref'),
-                [property.value]
+                [property.value as j.Identifier]
               )
             )
           ])
+        );
+
+        (setupReturn.argument as j.ObjectExpression).properties.push(
+          j.property('init', j.identifier(property.name), property.value)
         )
-        setupReturn.argument.properties.push(
-          j.identifier(property.name)
-        )
+
         setupVariables.push(property.name)
         if (!property.state) {
           valueWrappers.push(property.name)
         }
       }
     }
-    removeOption(dataOption)
   }
 
   // Computed
-  const computedOption = options.find(property => property.key.name === 'computed')
+  const computedOption = options.find(node => (node.key as j.Identifier).name === 'computed')
   if (computedOption) {
     newImports.vue.push('computed')
-    for (const property of computedOption.value.properties) {
+
+    if (!j.ObjectExpression.check(computedOption.value)) {
+      throw new Error('No return statement found in data option')
+    }
+
+    for (const property of computedOption.value.properties as j.ObjectProperty[]) {
       let args
       if (j.FunctionExpression.check(property.value)) {
         args = [j.arrowFunctionExpression([], property.value.body)]
       } else if (j.ObjectExpression.check(property.value)) {
-        const getFn = property.value.properties.find(p => p.key.name === 'get')
-        const setFn = property.value.properties.find(p => p.key.name === 'set')
+        const getFn = (property.value.properties as j.ObjectProperty[]).find(p => (p.key as Identifier).name === 'get')
+        const setFn = (property.value.properties as j.ObjectProperty[]).find(p => (p.key as Identifier).name === 'set')
         args = [
           getFn ? buildArrowFunctionExpression(getFn.value) : null,
           setFn ? buildArrowFunctionExpression(setFn.value) : undefined
@@ -133,7 +143,7 @@ export function convertScript (script: string, {
       setupFn.body.body.push(
         j.variableDeclaration('const', [
           j.variableDeclarator(
-            j.identifier(property.key.name),
+            j.identifier((property.key as Identifier).name),
             j.callExpression(
               j.identifier('computed'),
               args
@@ -141,7 +151,7 @@ export function convertScript (script: string, {
           )
         ])
       )
-      setupReturn.argument.properties.push(
+      setupReturn.argument!.properties.push(
         j.identifier(property.key.name)
       )
       setupVariables.push(property.key.name)
@@ -246,41 +256,25 @@ export function convertScript (script: string, {
     removeOption(methodsOption)
   }
 
-  // Lifecycle hooks
-  const processHooks = (hookList: string[], importList: string[]) => {
-    for (const option of options) {
-      if (hookList.includes(option.key.name)) {
-        const hookName = camel(`on_${option.key.name}`)
-        importList.push(hookName)
-        setupFn.body.body.push(j.expressionStatement(
-          j.callExpression(
-            j.identifier(hookName),
-            [j.arrowFunctionExpression(option.value.params, option.value.body)]
-          )
-        ))
-        removeOption(option)
-      }
-    }
-  }
-  processHooks(LIFECYCLE_HOOKS, newImports.vue)
-  processHooks(ROUTER_HOOKS, newImports.vueRouter)
+  processHooks(astCollection, setupFn, LIFECYCLE_HOOKS, newImports.vue)
+  processHooks(astCollection, setupFn, ROUTER_HOOKS, newImports.vueRouter)
 
   if (setupFn.body.body.length) {
-    // Remove `this`
-    transformThis(setupFn.body.body, setupVariables, valueWrappers)
-
     // Group statements heuristically
     setupFn.body.body = groupStatements(setupFn.body.body, setupVariables)
 
     setupFn.body.body.push(setupReturn)
 
-    componentDefinition.declaration.properties.push(
+    componentDefinition.properties.push(
       j.methodDefinition(
         'method',
         j.identifier('setup'),
         setupFn
-      )
+      ) as unknown as j.ObjectProperty
     )
+
+    // Remove `this`
+    transformThis(astCollection, setupVariables, valueWrappers)
   }
 
   // Imports
@@ -301,30 +295,44 @@ export function convertScript (script: string, {
   return print(ast).code
 }
 
-/**
- * @param {import('recast').types.ASTNode} node
- * @param {string[]} setupVariables
- * @param {string[]} valueWrappers
- */
-function transformThis (node, setupVariables, valueWrappers) {
-  visit(node, {
-    visitMemberExpression (path) {
+function processHooks (astCollection: j.Collection, setupFn: j.FunctionExpression, hookList: string[], importList: string[]) {
+  astCollection
+    .find(j.ObjectMethod)
+    .filter(path => (hookList.includes((path.value.key as j.Identifier).name)))
+    .forEach(path => {
+      const name = (path.node.key as j.Identifier).name
+      const hookName = `on${name.charAt(0).toUpperCase() + name.slice(1)}`
+      importList.push(hookName)
+      setupFn.body.body.push(j.expressionStatement(
+        j.callExpression(
+          j.identifier(hookName),
+          [j.arrowFunctionExpression(path.node.params, path.node.body)]
+        )
+      ))
+    }).remove()
+}
+
+function transformThis (astCollection: j.Collection, setupVariables: string[], valueWrappers: string[]) {
+  astCollection
+    .find(j.ObjectMethod, { key: { name: 'setup' } })
+    .find(j.MemberExpression)
+    .forEach(path => {
+      const property = path.value.property as j.Identifier
       if (j.ThisExpression.check(path.value.object) &&
-        setupVariables.includes(path.value.property.name)) {
+        setupVariables.includes(property.name)) {
         // Remove this
-        let parentObject = j.identifier(path.value.property.name)
+        let parentObject: j.Identifier | j.MemberExpression = j.identifier(property.name)
         // Value wrapper
-        if (valueWrappers.includes(path.value.property.name)) {
+        if (valueWrappers.includes(property.name)) {
           parentObject = j.memberExpression(parentObject, j.identifier('value'))
         }
         path.replace(parentObject)
       }
-      this.traverse(path)
-    }
-  })
+      // this.traverse(path)
+    })
 }
 
-function buildArrowFunctionExpression (node) {
+function buildArrowFunctionExpression (node: j.FunctionExpression) {
   const result = j.arrowFunctionExpression(
     node.params,
     node.body
@@ -333,7 +341,7 @@ function buildArrowFunctionExpression (node) {
   return result
 }
 
-function buildFunctionDeclaration (name, node) {
+function buildFunctionDeclaration (name: string, node: j.FunctionExpression) {
   const result = j.functionDeclaration(
     j.identifier(name),
     node.params,

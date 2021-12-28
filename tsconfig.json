@@ -26,6 +26,9 @@
       "scripthost"
     ]
   },
+  "rules": {
+    "@typescript-eslint/no-non-null-assertion": "off",
+  },
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
