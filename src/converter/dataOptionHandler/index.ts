@@ -1,48 +1,66 @@
 import j from 'jscodeshift'
+import { SetupState } from '../types'
 
-export default function (astCollection: j.Collection): j.Collection {
-  const dataOption = astCollection
-    .find(j.ObjectMethod, {
-      params: [],
+export default function (astCollection: j.Collection, setupState: SetupState): j.Collection {
+  const dataOptionCollection = astCollection
+    .find(j.Property, {
       key: {
         name: 'data'
       }
     })
-    .filter(path => path.parent.parent.type === 'ExportDefaultDeclaration').nodes()[0]
+    .filter(path => path.parent.parent.value.type === 'ExportDefaultDeclaration')
 
-  if (j.FunctionExpression.check(dataOption)) {
-    const returnStatement = dataOption.value.body.body.find(node =>
-      j.ReturnStatement.check(node)
-    )
+  const dataOption = dataOptionCollection.nodes()[0]
+
+  let objectProperties: j.ObjectProperty[] = []
+
+  if (dataOption) {
+    const returnStatement = dataOptionCollection
+      .find(j.ReturnStatement, {
+        argument: {
+          type: 'ObjectExpression'
+        }
+      })
+      .filter(path => path.parent.parent.key.name === 'data').nodes()[0]
 
     if (!j.ReturnStatement.check(returnStatement)) {
       throw new Error('No return statement found in data option')
     }
 
-    objectProperties = (returnStatement.argument as j.ObjectExpression).properties
-  } else if (j.ObjectExpression.check(dataOption.value)) {
-    objectProperties = dataOption.value.properties
+    /*
+      data () {
+        return 'not return an object'
+      }
+    */
+    if (!j.ObjectExpression.check(returnStatement.argument)) {
+      throw new Error('Return statement not a ObjectExpression')
+    }
+
+    objectProperties = returnStatement.argument?.properties as j.ObjectProperty[]
+  } else if (!dataOption) {
+    /*
+      todo
+      data: {}
+    */
   }
 
-  const dataProperties: { name: string; value: j.Property['value']; state: boolean } [] = []
-  objectProperties.forEach(p => {
-    const node = p as j.Property
-    dataProperties.push({
+  const dataProperties: { name: string; value: j.Property['value']; state: boolean } [] =
+    objectProperties.map(node => ({
       name: (node.key as j.Identifier).name,
       value: node.value,
       state: j.ObjectExpression.check(node.value)
-    })
-  })
+    }))
 
   if (dataProperties.length) {
     if (dataProperties.some(p => !p.state)) {
-      newImports.vue.push('ref')
+      setupState.newImports.vue.push('ref')
     }
     if (dataProperties.some(p => p.state)) {
-      newImports.vue.push('reactive')
+      setupState.newImports.vue.push('reactive')
     }
+
     for (const property of dataProperties) {
-      setupFn.body.body.push(
+      setupState.setupFn.body.body.push(
         j.variableDeclaration('const', [
           j.variableDeclarator(
             j.identifier(property.name),
@@ -54,13 +72,13 @@ export default function (astCollection: j.Collection): j.Collection {
         ])
       );
 
-      (setupReturn.argument as j.ObjectExpression).properties.push(
+      (setupState.setupReturn.argument as j.ObjectExpression).properties.push(
         j.property('init', j.identifier(property.name), property.value)
       )
 
-      setupVariables.push(property.name)
+      setupState.setupVariables.push(property.name)
       if (!property.state) {
-        valueWrappers.push(property.name)
+        setupState.valueWrappers.push(property.name)
       }
     }
   }
