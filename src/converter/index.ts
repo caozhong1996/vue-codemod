@@ -1,10 +1,10 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { kebab } from 'case'
 import { groupStatements } from './groups'
 import j from 'jscodeshift'
 import { SetupState } from './types'
-import computedOptionHandler from './computedOptionHandler'
-import dataOptionHandler from './dataOptionHandler'
+import dataHandler from './dataHandler'
+import computedHandler from './computedHandler'
+import watchHandler from './watchHandler'
 
 const LIFECYCLE_HOOKS = [
   'beforeCreate',
@@ -57,80 +57,12 @@ export function convertScript (script: string, {
   const options = componentDefinition.properties as j.Property[]
 
   // Data
-  dataOptionHandler(astCollection, setupState)
-
+  dataHandler(astCollection, setupState)
   // Computed
-  computedOptionHandler(astCollection, setupState)
+  computedHandler(astCollection, setupState)
 
   // Watch
-  const watchOption = options.find(property => property.key.name === 'watch')
-  if (watchOption) {
-    newImports.vue.push('watch')
-    for (const property of watchOption.value.properties) {
-      let firstArg
-      if (j.Literal.check(property.key)) {
-        const parts = property.key.value.split('.')
-        if (valueWrappers.includes(parts[0])) {
-          parts.splice(1, 0, 'value')
-        }
-        let expression
-        for (const part of parts) {
-          if (!expression) {
-            expression = j.identifier(part)
-          } else {
-            expression = j.memberExpression(expression, j.identifier(part))
-          }
-        }
-        firstArg = j.arrowFunctionExpression([], expression, true)
-      } else {
-        firstArg = j.identifier(property.key.name)
-      }
-
-      const args = [firstArg]
-      // Handler only as direct function
-      if (j.FunctionExpression.check(property.value)) {
-        args.push(buildArrowFunctionExpression(property.value))
-        // Immediate is false by default
-        args.push(j.objectExpression([
-          j.objectProperty(j.identifier('lazy'), j.literal(true))
-        ]))
-      } else if (j.ObjectExpression.check(property.value)) {
-        // Object notation
-        const handler = property.value.properties.find(p => p.key.name === 'handler')
-        args.push(buildArrowFunctionExpression(handler.value))
-        const options = []
-        for (const objectProperty of property.value.properties) {
-          if (objectProperty.key.name === 'immediate') {
-            // Convert to `lazy` option (and negate value)
-            let value
-            let addLazyOption = false
-            if (j.Literal.check(objectProperty.value)) {
-              const lazy = !objectProperty.value.value
-              value = j.literal(lazy)
-              addLazyOption = lazy
-            } else {
-              value = j.unaryExpression('!', objectProperty.value)
-              addLazyOption = true
-            }
-            if (addLazyOption) {
-              options.push(j.objectProperty(j.identifier('lazy'), value))
-            }
-          } else if (objectProperty.key.name !== 'handler') {
-            options.push(objectProperty)
-          }
-        }
-        if (options.length) {
-          args.push(j.objectExpression(options))
-        }
-      }
-      setupFn.body.body.push(j.expressionStatement(
-        j.callExpression(
-          j.identifier('watch'),
-          args
-        )
-      ))
-    }
-  }
+  watchHandler(astCollection, setupState)
 
   // Methods
   const methodsOption = options.find(property => property.key.name === 'methods')
