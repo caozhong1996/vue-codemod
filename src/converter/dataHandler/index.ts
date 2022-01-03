@@ -21,7 +21,7 @@ export default function (astCollection: j.Collection, setupState: SetupState): j
           type: 'ObjectExpression'
         }
       })
-      .filter(path => path.parent.parent.key.name === 'data').nodes()[0]
+      .filter(path => path.parent.parent.parent.value.key.name === 'data').nodes()[0]
 
     if (!j.ReturnStatement.check(returnStatement)) {
       throw new Error('No return statement found in data option')
@@ -72,16 +72,17 @@ export default function (astCollection: j.Collection, setupState: SetupState): j
         ])
       );
 
-      (setupState.setupReturn.argument as j.ObjectExpression).properties.push(
+      (setupState.returnStatement.argument as j.ObjectExpression).properties.push(
         j.property('init', j.identifier(property.name), property.value)
       )
 
-      setupState.setupVariables.push(property.name)
+      setupState.variables.push(property.name)
       if (!property.state) {
         setupState.valueWrappers.push(property.name)
       }
     }
   }
 
+  dataOptionCollection.remove()
   return astCollection
 }

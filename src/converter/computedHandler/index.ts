@@ -48,10 +48,10 @@ export default function (astCollection: j.Collection, setupState: SetupState): j
           ])
         );
 
-        (setupState.setupReturn.argument as j.ObjectExpression).properties.push(
+        (setupState.returnStatement.argument as j.ObjectExpression).properties.push(
           j.property('init', j.identifier(name), j.identifier(name))
         )
-        setupState.setupVariables.push(name)
+        setupState.variables.push(name)
         setupState.valueWrappers.push(name)
       })
     })

@@ -38,10 +38,6 @@ export default function (astCollection: j.Collection, setupState: SetupState): j
       // Handler only as direct function
       if (j.FunctionExpression.check(property.value)) {
         args.push(buildArrowFunctionExpression(property.value))
-        // Immediate is false by default
-        args.push(j.objectExpression([
-          j.objectProperty(j.identifier('lazy'), j.literal(true))
-        ]))
       } else if (j.ObjectExpression.check(property.value)) {
         // Object notation
         const objectProperties = property.value.properties as j.Property[]

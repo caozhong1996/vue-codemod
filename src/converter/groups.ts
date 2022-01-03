@@ -22,9 +22,9 @@ const { namedTypes } = types
 
 /**
  * @param {import('recast').types.ASTNode[]} nodes
- * @param {string[]} setupVariables
+ * @param {string[]} variables
  */
-export function groupStatements (nodes, setupVariables) {
+export function groupStatements (nodes, variables) {
   /** @type {StatementGroup[]} */
   let groups = []
 
@@ -32,7 +32,7 @@ export function groupStatements (nodes, setupVariables) {
   const wordedNodes = []
   const otherNodes = []
   for (const node of nodes) {
-    if (getStatementWords(node, setupVariables).length) {
+    if (getStatementWords(node, variables).length) {
       wordedNodes.push(node)
     } else {
       otherNodes.push(node)
@@ -43,7 +43,7 @@ export function groupStatements (nodes, setupVariables) {
   for (const nodeA of wordedNodes) {
     for (const nodeB of wordedNodes) {
       if (nodeA !== nodeB) {
-        const score = getStatementGroupScore(nodeA, nodeB, setupVariables)
+        const score = getStatementGroupScore(nodeA, nodeB, variables)
         if (score > 0) {
           let group = groups.find(
             g => g.score === score && (g.nodes.has(nodeA) || g.nodes.has(nodeB))
@@ -113,7 +113,7 @@ export function groupStatements (nodes, setupVariables) {
       visit(Array.from(group.nodes), {
         visitIdentifier (path) {
           const identifier = path.value.name
-          if (setupVariables.includes(identifier) && !group.declarations.includes(identifier)) {
+          if (variables.includes(identifier) && !group.declarations.includes(identifier)) {
             group.dependencies.add(identifier)
           }
           this.traverse(path)
@@ -218,10 +218,10 @@ const wordCache = new Map()
 
 /**
  * @param {import('recast').types.ASTNode} node
- * @param {string[]} setupVariables
+ * @param {string[]} variables
  * @returns {Word[]}
  */
-function getStatementWords (node, setupVariables) {
+function getStatementWords (node, variables) {
   if (!wordNodeCache.has(node)) {
     /** @type {Word[]} */
     let words = []
@@ -234,7 +234,7 @@ function getStatementWords (node, setupVariables) {
       visit(node, {
         visitIdentifier (path) {
           const identifier = path.value.name
-          if (setupVariables.includes(identifier) && !words.includes(identifier)) {
+          if (variables.includes(identifier) && !words.includes(identifier)) {
             words.push({ value: identifier, score: 1 })
           }
           this.traverse(path)

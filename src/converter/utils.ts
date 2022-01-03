@@ -9,6 +9,17 @@ function buildArrowFunctionExpression (node: j.FunctionExpression | j.ArrowFunct
   return result
 }
 
+function buildFunctionDeclaration (name: string, node: j.FunctionExpression): j.FunctionDeclaration {
+  const result = j.functionDeclaration(
+    j.identifier(name),
+    node.params,
+    node.body
+  )
+  result.async = node.async
+  return result
+}
+
 export {
-  buildArrowFunctionExpression
+  buildArrowFunctionExpression,
+  buildFunctionDeclaration
 }

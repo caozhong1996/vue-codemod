@@ -3,12 +3,13 @@ import j from 'jscodeshift'
 type SetupState = {
   newImports: {
     vue: string[]
-    vueRouter: string[]
+    'vue-router': string[]
   }
-  setupReturn: j.ReturnStatement
+  returnStatement: j.ReturnStatement
   setupFn: j.FunctionExpression
   valueWrappers: string[]
-  setupVariables: string[]
+  variables: string[],
+  methods: boolean
 }
 
 export {
