@@ -8,7 +8,11 @@ export default {
       foo: 'bar',
     }
   },
-
+  watch: {
+    foo () {
+      // do something...
+    }
+  },
   computed: {
     foofoo () {
       return this.foo.repeat(2)
@@ -49,7 +53,9 @@ export class ReplStore {
     watch(
       () => this.state.code,
       () => {
-        this.state.convertedCode = convertScript(this.state.code)
+        try {
+          this.state.convertedCode = convertScript(this.state.code)
+        } catch {}
       },
       {
         immediate: true

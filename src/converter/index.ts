@@ -101,7 +101,6 @@ export function convertScript (script: string, {
       .find(j.ExportDefaultDeclaration)
       .forEach(path => path.insertBefore(...importStatements))
   }
-  console.log(astCollection.toSource())
 
   return astCollection.toSource()
 }

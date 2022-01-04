@@ -5,7 +5,6 @@ import { inject } from 'vue'
 import { ReplStore } from './store'
 
 const store = inject('store') as ReplStore
-console.log(1111, store)
 
 const onChange = debounce((code: string) => {
   store.state.code = code
