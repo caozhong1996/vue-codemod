@@ -4,4 +4,6 @@
 
 <h1 align="center">vue-codemod</h1>
 
-vue-codemod is a tool/library to assist you with codebase refactors that can be partially automated but still require human oversight and occasional intervention.
+<p align="center">
+  A tool/library to assist you with vue codebase refactors.
+</p>
