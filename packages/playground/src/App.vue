@@ -19,7 +19,7 @@ provide('store', new ReplStore())
 
 </script>
 
-<style lang="scss">
+<style>
 html, body {
   height: 100%;
   margin: 0;

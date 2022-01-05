@@ -15,6 +15,7 @@ const onChange = debounce((code: string) => {
   <div class="editor-container">
     <CodeMirror
       @change="onChange"
+      mode="javascript"
       :value="store.state.code"
     />
   </div>

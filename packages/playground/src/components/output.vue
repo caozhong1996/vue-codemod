@@ -10,6 +10,7 @@ const store = inject('store') as ReplStore
   <div class="editor-container">
     <CodeMirror
       :readonly="true"
+      mode="javascript"
       :value="store.state.convertedCode"
     />
   </div>

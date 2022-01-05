@@ -1,5 +1,5 @@
 import { reactive, watch } from 'vue'
-import { convertScript } from '../converter'
+import { convertScript } from '@vue-codemod/option-composition'
 
 const welcomeCode = `
 export default {

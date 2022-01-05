@@ -1,0 +1,17 @@
+{
+  "name": "@vue-codemod/option-composition",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "caozhong1996",
+  "license": "MIT",
+  "dependencies": {
+    "jscodeshift": "^0.13.0"
+  },
+  "devDependencies": {
+    "@types/jscodeshift": "^0.11.3"
+  }
+}
