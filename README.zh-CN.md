@@ -30,7 +30,7 @@ Vue3.0 发布之后，出现了很多语法上的改动：
 - [ ] 编写 Vscode 插件，支持将 Codemods 应用于.vue文件
 - [ ] 设置测试用例
 - [ ] 支持 Typescript 转换
-- [x] A playground for writing transformations and visit http://localhost:3000
+- [x] 转换示例的游乐场 http://localhost:3000
 
 ## 使用方式
 
