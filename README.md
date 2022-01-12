@@ -12,6 +12,10 @@
 <img src="https://img.shields.io/github/languages/top/caozhong1996/vue-codemod">
 </p>
 
+<p align="center">
+  🇨🇳 <a href="./README.zh-CN.md">中文版介绍</a>
+</p>
+
 ## Background
 
 After the release of Vue3.0, there have been many syntax changes:
