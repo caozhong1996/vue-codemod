@@ -13,5 +13,6 @@
     "typescript": "^4.4.4",
     "vite": "^2.7.2",
     "vue-tsc": "^0.29.8"
-  }
+  },
+  "homepage": "https://caozhong1996.github.io/vue-codemod",
 }
