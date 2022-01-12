@@ -15,4 +15,10 @@
     "vue-tsc": "^0.29.8"
   },
   "homepage": "https://caozhong1996.github.io/vue-codemod",
+  "keywords": [
+    "vue",
+    "codemod",
+    "vue-codemod"
+  ],
+  "license": "MIT"
 }
