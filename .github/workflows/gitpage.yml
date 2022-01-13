@@ -21,7 +21,7 @@ jobs:
           version: latest
         
     - name: Build website
-      run: playground:build
+      run: pnpm playground:build
 
     - name: Build and Deploy
       uses: JamesIves/github-pages-deploy-action@v4.2.2
