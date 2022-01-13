@@ -12,8 +12,8 @@ jobs:
 
     - name: Build and Deploy
       uses: JamesIves/github-pages-deploy-action@v4.2.2
-      env:
-        ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
-        BRANCH: gh-pages
-        FOLDER: packages/playground/dist
-        BUILD_SCRIPT: pnpm install && cd packages/playground && pnpm run build
+      with:
+          token: ${{ secrets.ACCESS_TOKEN }}
+          branch: gh-pages # The branch the action should deploy to.
+          folder: packages/playground/dist # The folder the action should deploy.
+          commit-message: website deploy
