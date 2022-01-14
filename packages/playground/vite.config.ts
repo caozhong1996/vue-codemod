@@ -11,6 +11,9 @@ export default defineConfig({
   define: {
     'process.env': {}
   },
-  plugins: [vue()]
+  plugins: [vue()],
+  build: {
+    target: 'esnext'
+  }
 })
 
