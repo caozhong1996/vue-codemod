@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build --mode staging --base=/vue-codemod/",
+    "build": "vue-tsc --noEmit && vite build --base=/vue-codemod/ && node removeFlowparser",
     "preview": "vite preview"
   },
   "dependencies": {

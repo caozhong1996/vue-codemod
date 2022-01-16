@@ -13,7 +13,9 @@ export default defineConfig({
   },
   plugins: [vue()],
   build: {
-    target: 'esnext'
+    rollupOptions: {
+      external: ['flow-parser'],
+    }
   }
 })
 
